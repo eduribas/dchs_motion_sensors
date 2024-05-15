@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import CoreMotion
+import GLKit
 
 let GRAVITY = 9.8
 let TYPE_ACCELEROMETER = 1
@@ -227,13 +228,44 @@ class AttitudeStreamHandler: NSObject, FlutterStreamHandler {
             motionManager.showsDeviceMovementDisplay = true
             motionManager.startDeviceMotionUpdates(using: attitudeReferenceFrame, to: queue) { (data, error) in
                 if data != nil {
-                    // Let the y-axis point to magnetic north instead of the x-axis
-                    if self.attitudeReferenceFrame == CMAttitudeReferenceFrame.xMagneticNorthZVertical {
-                        let yaw = (data!.attitude.yaw + Double.pi + Double.pi / 2).truncatingRemainder(dividingBy: Double.pi * 2) - Double.pi
-                        events([yaw, data!.attitude.pitch, data!.attitude.roll])
-                    } else {
-                        events([data!.attitude.yaw, data!.attitude.pitch, data!.attitude.roll])
+                    let attitude = data!.attitude
+
+                    // Correct for the rotation matrix not including the screen orientation:
+                    let orientation = UIDevice.current.orientation
+
+                    var deviceOrientationRadians: Float = 0.0
+                    if (orientation == .landscapeLeft) {
+                        deviceOrientationRadians = Float.pi / 2
                     }
+                    else if (orientation == .landscapeRight) {
+                        deviceOrientationRadians = -Float.pi / 2
+                    }
+                    else if (orientation == .portraitUpsideDown) {
+                        deviceOrientationRadians = Float.pi
+                    }
+
+                    let baseRotation = GLKMatrix4MakeRotation(deviceOrientationRadians, 0.0, 1.0, 1.0)
+                        
+                    let rotationMatrix = attitude.rotationMatrix
+                    var deviceMotionAttitudeMatrix
+                        = GLKMatrix4Make(Float(rotationMatrix.m11), Float(rotationMatrix.m21), Float(rotationMatrix.m31), 0.0,
+                                        Float(rotationMatrix.m12), Float(rotationMatrix.m22), Float(rotationMatrix.m32), 0.0,
+                                        Float(rotationMatrix.m13), Float(rotationMatrix.m23), Float(rotationMatrix.m33), 0.0,
+                                        0.0, 0.0, 0.0, 1.0)
+                    deviceMotionAttitudeMatrix = GLKMatrix4Multiply(baseRotation, deviceMotionAttitudeMatrix)
+
+                    let pitch = asin(-deviceMotionAttitudeMatrix.m22)
+
+                    let rollGravity = atan2(data!.gravity.x, data!.gravity.y) - Double.pi; //roll based on just gravity
+                    
+                    events([attitude.yaw, pitch, rollGravity])
+                    // // Let the y-axis point to magnetic north instead of the x-axis
+                    // if self.attitudeReferenceFrame == CMAttitudeReferenceFrame.xMagneticNorthZVertical {
+                    //     let yaw = (data!.attitude.yaw + Double.pi + Double.pi / 2).truncatingRemainder(dividingBy: Double.pi * 2) - Double.pi
+                    //     events([yaw, data!.attitude.pitch, data!.attitude.roll])
+                    // } else {
+                    //     events([data!.attitude.yaw, data!.attitude.pitch, data!.attitude.roll])
+                    // }
                 }
             }
         }

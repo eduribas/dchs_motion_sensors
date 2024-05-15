@@ -95,11 +95,11 @@ public class MotionSensorsPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     magnetometerChannel!!.setStreamHandler(magnetometerStreamHandler!!)
 
     orientationChannel = EventChannel(messenger, ORIENTATION_CHANNEL_NAME)
-    orientationStreamHandler = RotationVectorStreamHandler(sensorManager!!, Sensor.TYPE_GAME_ROTATION_VECTOR)
+    orientationStreamHandler = RotationVectorStreamHandler(context, sensorManager!!, Sensor.TYPE_GAME_ROTATION_VECTOR)
     orientationChannel!!.setStreamHandler(orientationStreamHandler!!)
 
     absoluteOrientationChannel = EventChannel(messenger, ABSOLUTE_ORIENTATION_CHANNEL_NAME)
-    absoluteOrientationStreamHandler = RotationVectorStreamHandler(sensorManager!!, Sensor.TYPE_ROTATION_VECTOR)
+    absoluteOrientationStreamHandler = RotationVectorStreamHandler(context, sensorManager!!, Sensor.TYPE_ROTATION_VECTOR)
     absoluteOrientationChannel!!.setStreamHandler(absoluteOrientationStreamHandler!!)
 
     screenOrientationChannel = EventChannel(messenger, SCREEN_ORIENTATION_CHANNEL_NAME)
@@ -165,7 +165,7 @@ class StreamHandlerImpl(private val sensorManager: SensorManager, sensorType: In
   }
 }
 
-class RotationVectorStreamHandler(private val sensorManager: SensorManager, sensorType: Int, private var interval: Int = SensorManager.SENSOR_DELAY_NORMAL) :
+class RotationVectorStreamHandler(private val context: Context, private val sensorManager: SensorManager, sensorType: Int, private var interval: Int = SensorManager.SENSOR_DELAY_NORMAL) :
         EventChannel.StreamHandler, SensorEventListener {
   private val sensor = sensorManager.getDefaultSensor(sensorType)
   private var eventSink: EventChannel.EventSink? = null
@@ -187,13 +187,58 @@ class RotationVectorStreamHandler(private val sensorManager: SensorManager, sens
   }
 
   override fun onSensorChanged(event: SensorEvent?) {
-    var matrix = FloatArray(9)
-    SensorManager.getRotationMatrixFromVector(matrix, event!!.values)
-    if (matrix[7] > 1.0f) matrix[7] = 1.0f
-    if (matrix[7] < -1.0f) matrix[7] = -1.0f
-    var orientation = FloatArray(3)
-    SensorManager.getOrientation(matrix, orientation)
-    val sensorValues = listOf(-orientation[0], -orientation[1], orientation[2])
+    // var matrix = FloatArray(9)
+    // SensorManager.getRotationMatrixFromVector(matrix, event!!.values)
+    // if (matrix[7] > 1.0f) matrix[7] = 1.0f
+    // if (matrix[7] < -1.0f) matrix[7] = -1.0f
+    // var orientation = FloatArray(3)
+    // SensorManager.getOrientation(matrix, orientation)
+    // val sensorValues = listOf(-orientation[0], -orientation[1], orientation[2])
+    // eventSink?.success(sensorValues)
+
+    val rotationMatrix = FloatArray(9)
+    SensorManager.getRotationMatrixFromVector(rotationMatrix, event!!.values)
+
+    var worldAxisForDeviceAxisX: Int
+    var worldAxisForDeviceAxisY: Int
+
+    // Remap the axes as if the device screen was the instrument panel,
+    // and adjust the rotation matrix for the device orientation.
+    when ((context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.rotation) {
+      Surface.ROTATION_0 -> {
+        worldAxisForDeviceAxisX = SensorManager.AXIS_X
+        worldAxisForDeviceAxisY = SensorManager.AXIS_Z
+      }
+      Surface.ROTATION_90 -> {
+        worldAxisForDeviceAxisX = SensorManager.AXIS_Z
+        worldAxisForDeviceAxisY = SensorManager.AXIS_MINUS_X
+      }
+      Surface.ROTATION_180 -> {
+        worldAxisForDeviceAxisX = SensorManager.AXIS_MINUS_X
+        worldAxisForDeviceAxisY = SensorManager.AXIS_MINUS_Z
+      }
+      Surface.ROTATION_270 -> {
+        worldAxisForDeviceAxisX = SensorManager.AXIS_MINUS_Z
+        worldAxisForDeviceAxisY = SensorManager.AXIS_X
+      }
+      else -> {
+        worldAxisForDeviceAxisX = SensorManager.AXIS_X
+        worldAxisForDeviceAxisY = SensorManager.AXIS_Z
+      }
+    }
+
+    val adjustedRotationMatrix = FloatArray(9)
+    SensorManager.remapCoordinateSystem(rotationMatrix, worldAxisForDeviceAxisX, worldAxisForDeviceAxisY, adjustedRotationMatrix)
+
+    // Transform rotation matrix into azimuth/pitch/roll
+    val orientation = FloatArray(3)
+    SensorManager.getOrientation(adjustedRotationMatrix, orientation)
+
+    val pitch = -orientation[1]
+    val roll = -orientation[2]
+    // val sensorValues = doubleArrayOf(-orientation[0], pitch, roll)
+    val sensorValues = listOf(-orientation[0], pitch, roll)
+
     eventSink?.success(sensorValues)
   }
 
