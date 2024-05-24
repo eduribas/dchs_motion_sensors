@@ -121,7 +121,9 @@ class AccelerometerStreamHandler: NSObject, FlutterStreamHandler {
         if motionManager.isAccelerometerAvailable {
             motionManager.startAccelerometerUpdates(to: queue) { (data, error) in
                 if data != nil {
-                    events([-data!.acceleration.x * GRAVITY, -data!.acceleration.y * GRAVITY, -data!.acceleration.z * GRAVITY])
+                    DispatchQueue.main.async {                    
+                        events([-data!.acceleration.x * GRAVITY, -data!.acceleration.y * GRAVITY, -data!.acceleration.z * GRAVITY])
+                    }
                 }
             }
         }
@@ -146,7 +148,9 @@ class UserAccelerometerStreamHandler: NSObject, FlutterStreamHandler {
         if motionManager.isDeviceMotionAvailable {
             motionManager.startDeviceMotionUpdates(to: queue) { (data, error) in
                 if data != nil {
-                    events([-data!.userAcceleration.x * GRAVITY, -data!.userAcceleration.y * GRAVITY, -data!.userAcceleration.z * GRAVITY])
+                    DispatchQueue.main.async {
+                        events([-data!.userAcceleration.x * GRAVITY, -data!.userAcceleration.y * GRAVITY, -data!.userAcceleration.z * GRAVITY])
+                    }
                 }
             }
         }
@@ -171,7 +175,9 @@ class GyroscopeStreamHandler: NSObject, FlutterStreamHandler {
         if motionManager.isGyroAvailable {
             motionManager.startGyroUpdates(to: queue) { (data, error) in
                 if data != nil {
-                    events([data!.rotationRate.x, data!.rotationRate.y, data!.rotationRate.z])
+                    DispatchQueue.main.async {
+                        events([data!.rotationRate.x, data!.rotationRate.y, data!.rotationRate.z])
+                    }
                 }
             }
         }
@@ -197,7 +203,9 @@ class MagnetometerStreamHandler: NSObject, FlutterStreamHandler {
             motionManager.showsDeviceMovementDisplay = true
             motionManager.startDeviceMotionUpdates(using: CMAttitudeReferenceFrame.xArbitraryCorrectedZVertical, to: queue) { (data, error) in
                 if data != nil {
-                    events([data!.magneticField.field.x, data!.magneticField.field.y, data!.magneticField.field.z])
+                    DispatchQueue.main.async {
+                        events([data!.magneticField.field.x, data!.magneticField.field.y, data!.magneticField.field.z])
+                    }
                 }
             }
         }
@@ -258,14 +266,10 @@ class AttitudeStreamHandler: NSObject, FlutterStreamHandler {
 
                     let rollGravity = atan2(data!.gravity.x, data!.gravity.y) - Double.pi; //roll based on just gravity
                     
-                    events([attitude.yaw, pitch, rollGravity])
-                    // // Let the y-axis point to magnetic north instead of the x-axis
-                    // if self.attitudeReferenceFrame == CMAttitudeReferenceFrame.xMagneticNorthZVertical {
-                    //     let yaw = (data!.attitude.yaw + Double.pi + Double.pi / 2).truncatingRemainder(dividingBy: Double.pi * 2) - Double.pi
-                    //     events([yaw, data!.attitude.pitch, data!.attitude.roll])
-                    // } else {
-                    //     events([data!.attitude.yaw, data!.attitude.pitch, data!.attitude.roll])
-                    // }
+                    DispatchQueue.main.async {
+                         // Make your invokeMethod calls here.
+                        events([attitude.yaw, pitch, rollGravity])
+                    }
                 }
             }
         }
@@ -300,17 +304,19 @@ class ScreenOrientationStreamHandler: NSObject, FlutterStreamHandler {
     }
     
     @objc func orientationChanged() {
-        switch UIApplication.shared.statusBarOrientation {
-        case .portrait:
-            eventSink!(0.0)
-        case .portraitUpsideDown:
-            eventSink!(180.0)
-        case .landscapeLeft:
-            eventSink!(-90.0)
-        case .landscapeRight:
-            eventSink!(90.0)
-        default:
-            eventSink!(0.0)
+        DispatchQueue.main.async {
+            switch UIApplication.shared.statusBarOrientation {
+            case .portrait:
+                self.eventSink!(0.0)
+            case .portraitUpsideDown:
+                self.eventSink!(180.0)
+            case .landscapeLeft:
+                self.eventSink!(-90.0)
+            case .landscapeRight:
+                self.eventSink!(90.0)
+            default:
+                self.eventSink!(0.0)
+            }
         }
     }
 }
