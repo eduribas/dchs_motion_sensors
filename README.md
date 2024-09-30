@@ -10,7 +10,7 @@ file](https://flutter.io/platform-plugins/).
 
 ```yaml
 dependencies:
-  motion_sensors: ^1.0.1
+  motion_sensors: ^2.0.0
 ```
 
 Import to your project.

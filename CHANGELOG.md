@@ -1,3 +1,12 @@
+## 2.0.0
+
+* update build gradle to 8.1.0 
+* update kotlin version to 1.8.22
+* changed build.gradle file with latest recommendation
+* removed gradle.properties, gradle-wrapper.properties and AndroidManifest.xml (deprecated the package definition on that file)
+* update the vector_math dependency to the latest version
+* update for compatibility to the latest flutter 3.24.3
+
 ## 1.1.0
 
 * add support for Android namespace
