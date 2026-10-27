@@ -11,6 +11,17 @@ let TYPE_USER_ACCELEROMETER = 10
 let TYPE_ORIENTATION = 11
 let TYPE_ABSOLUTE_ORIENTATION = 15
 
+private func emitOnMainThread(_ eventSink: @escaping FlutterEventSink, value: Any) {
+    if Thread.isMainThread {
+        eventSink(value)
+        return
+    }
+
+    DispatchQueue.main.async {
+        eventSink(value)
+    }
+}
+
 
 // translate from https://github.com/flutter/plugins/tree/master/packages/sensors
 public class SwiftMotionSensorsPlugin: NSObject, FlutterPlugin {
@@ -67,6 +78,7 @@ public class SwiftMotionSensorsPlugin: NSObject, FlutterPlugin {
         case "setSensorUpdateInterval":
             let arguments = call.arguments as! NSDictionary
             setSensorUpdateInterval(arguments["sensorType"] as! Int, arguments["interval"] as! Int)
+            result(nil)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -121,9 +133,10 @@ class AccelerometerStreamHandler: NSObject, FlutterStreamHandler {
         if motionManager.isAccelerometerAvailable {
             motionManager.startAccelerometerUpdates(to: queue) { (data, error) in
                 if data != nil {
-                    DispatchQueue.main.async {                    
-                        events([-data!.acceleration.x * GRAVITY, -data!.acceleration.y * GRAVITY, -data!.acceleration.z * GRAVITY])
-                    }
+                    emitOnMainThread(
+                        events,
+                        value: [-data!.acceleration.x * GRAVITY, -data!.acceleration.y * GRAVITY, -data!.acceleration.z * GRAVITY]
+                    )
                 }
             }
         }
@@ -148,9 +161,10 @@ class UserAccelerometerStreamHandler: NSObject, FlutterStreamHandler {
         if motionManager.isDeviceMotionAvailable {
             motionManager.startDeviceMotionUpdates(to: queue) { (data, error) in
                 if data != nil {
-                    DispatchQueue.main.async {
-                        events([-data!.userAcceleration.x * GRAVITY, -data!.userAcceleration.y * GRAVITY, -data!.userAcceleration.z * GRAVITY])
-                    }
+                    emitOnMainThread(
+                        events,
+                        value: [-data!.userAcceleration.x * GRAVITY, -data!.userAcceleration.y * GRAVITY, -data!.userAcceleration.z * GRAVITY]
+                    )
                 }
             }
         }
@@ -175,9 +189,10 @@ class GyroscopeStreamHandler: NSObject, FlutterStreamHandler {
         if motionManager.isGyroAvailable {
             motionManager.startGyroUpdates(to: queue) { (data, error) in
                 if data != nil {
-                    DispatchQueue.main.async {
-                        events([data!.rotationRate.x, data!.rotationRate.y, data!.rotationRate.z])
-                    }
+                    emitOnMainThread(
+                        events,
+                        value: [data!.rotationRate.x, data!.rotationRate.y, data!.rotationRate.z]
+                    )
                 }
             }
         }
@@ -203,9 +218,10 @@ class MagnetometerStreamHandler: NSObject, FlutterStreamHandler {
             motionManager.showsDeviceMovementDisplay = true
             motionManager.startDeviceMotionUpdates(using: CMAttitudeReferenceFrame.xArbitraryCorrectedZVertical, to: queue) { (data, error) in
                 if data != nil {
-                    DispatchQueue.main.async {
-                        events([data!.magneticField.field.x, data!.magneticField.field.y, data!.magneticField.field.z])
-                    }
+                    emitOnMainThread(
+                        events,
+                        value: [data!.magneticField.field.x, data!.magneticField.field.y, data!.magneticField.field.z]
+                    )
                 }
             }
         }
@@ -266,10 +282,10 @@ class AttitudeStreamHandler: NSObject, FlutterStreamHandler {
 
                     let rollGravity = atan2(data!.gravity.x, data!.gravity.y) - Double.pi; //roll based on just gravity
                     
-                    DispatchQueue.main.async {
-                         // Make your invokeMethod calls here.
-                        events([attitude.yaw, pitch, rollGravity])
-                    }
+                    emitOnMainThread(
+                        events,
+                        value: [attitude.yaw, pitch, rollGravity]
+                    )
                 }
             }
         }
@@ -304,19 +320,22 @@ class ScreenOrientationStreamHandler: NSObject, FlutterStreamHandler {
     }
     
     @objc func orientationChanged() {
-        DispatchQueue.main.async {
-            switch UIApplication.shared.statusBarOrientation {
-            case .portrait:
-                self.eventSink!(0.0)
-            case .portraitUpsideDown:
-                self.eventSink!(180.0)
-            case .landscapeLeft:
-                self.eventSink!(-90.0)
-            case .landscapeRight:
-                self.eventSink!(90.0)
-            default:
-                self.eventSink!(0.0)
-            }
+        let interfaceOrientation = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?
+            .interfaceOrientation
+
+        switch interfaceOrientation {
+        case .portrait:
+            eventSink!(0.0)
+        case .portraitUpsideDown:
+            eventSink!(180.0)
+        case .landscapeLeft:
+            eventSink!(-90.0)
+        case .landscapeRight:
+            eventSink!(90.0)
+        default:
+            eventSink!(0.0)
         }
     }
 }
